@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shape Game & Pokémon Reward</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+        
+        body {
+            font-family: 'Fredoka', 'Arial', sans-serif;
+            touch-action: manipulation;
+        }
+
+        .answer-box {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .answer-box.filled {
+            border-style: solid;
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+            transform: scale(1.02);
+        }
+
+        .choice-btn {
+            transition: all 0.15s ease-in-out;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .shape-svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.15));
+        }
+
+        .single-line-questions {
+            display: flex;
+            flex-wrap: nowrap !important;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            gap: 8px;
+        }
+
+        @keyframes pop {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .animate-pop {
+            animation: pop 0.4s ease-out forwards;
+        }
+
+        /* Pokeball styling */
+        .pokeball {
+            width: 200px;
+            height: 200px;
+            background: linear-gradient(to bottom, #ef4444 50%, #ffffff 50%);
+            border-radius: 50%;
+            border: 10px solid #1e293b;
+            position: relative;
+            box-shadow: inset -12px -12px 0 rgba(0,0,0,0.15), 0 12px 24px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .pokeball:active {
+            transform: scale(0.92);
+        }
+
+        .pokeball::before {
+            content: '';
+            position: absolute;
+            top: calc(50% - 6px);
+            left: 0;
+            width: 100%;
+            height: 12px;
+            background-color: #1e293b;
+        }
+
+        .pokeball-btn {
+            width: 55px;
+            height: 55px;
+            background: #ffffff;
+            border: 8px solid #1e293b;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 0 4px #ffffff, 0 0 14px rgba(255,255,255,0.8);
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-1 sm:p-4 select-none">
+
+    <!-- Card Container -->
+    <div id="mainCard" class="bg-white rounded-3xl shadow-xl p-3 sm:p-6 max-w-4xl w-full border-4 border-slate-200 text-center flex flex-col items-center transition-colors duration-500">
+        
+        <!-- Header -->
+        <div id="topHeader" class="w-full flex justify-between items-center mb-3 pb-2 border-b-2 border-slate-100">
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-700">🎨 Shape Game</h1>
+            <span id="progress" class="text-base sm:text-lg font-semibold bg-indigo-100 text-indigo-700 px-4 py-1 rounded-full">
+                第 1 / 5 題
+            </span>
+        </div>
+
+        <!-- Game Area -->
+        <div id="gameArea" class="w-full flex flex-col items-center">
+            <!-- Question Words -->
+            <div id="questionBox" class="single-line-questions mb-6 w-full min-h-[65px] sm:min-h-[85px]"></div>
+
+            <!-- Answer Container -->
+            <div class="mb-2 text-xs sm:text-sm text-slate-400 font-semibold tracking-wide uppercase">Your Answer</div>
+            <div id="answerContainer" class="flex justify-center gap-2 sm:gap-4 mb-6 w-full min-h-[75px] sm:min-h-[90px] items-center flex-wrap"></div>
+
+            <!-- Status Message -->
+            <div id="message" class="min-h-[32px] text-lg sm:text-xl font-bold text-emerald-600 mb-4 transition-all">
+                點擊下方圖形填入答案！
+            </div>
+
+            <!-- Options -->
+            <div class="w-full pt-4 border-t-2 border-slate-100">
+                <div class="text-xs sm:text-sm text-slate-400 font-semibold tracking-wide uppercase mb-3">Shape Choices</div>
+                <div id="choicesContainer" class="flex justify-center gap-2 sm:gap-3 flex-wrap"></div>
+            </div>
+        </div>
+
+        <!-- Pokémon Reward Area (Revealed on clearing 5 questions) -->
+        <div id="completeArea" class="hidden flex-col items-center py-4 w-full text-white relative overflow-hidden">
+            <h2 class="text-3xl sm:text-4xl font-bold text-yellow-300 mb-2">🎉 太厲害了！全對！</h2>
+            <p class="text-indigo-200 mb-6 text-base sm:text-lg">你贏得了寶可夢獎勵！點擊寶可夢球解鎖！</p>
+            
+            <div class="relative flex items-center justify-center my-4">
+                <div id="pokeball" class="pokeball flex items-center justify-center overflow-hidden border-8 border-slate-800 shadow-2xl z-10" onclick="triggerElectricSpark()">
+                    <div id="pokeballBtn" class="pokeball-btn"></div>
+                    <div id="pokemonDisplay" class="hidden w-full h-full p-2 bg-gradient-to-b from-indigo-100 to-white flex items-center justify-center animate-pop">
+                        <img id="pokemonImg" src="" alt="Revealed Pokemon" class="w-40 h-40 object-contain filter drop-shadow-lg" />
+                    </div>
+                </div>
+            </div>
+
+            <canvas id="sparkCanvas" class="absolute inset-0 pointer-events-none w-full h-full"></canvas>
+
+            <div id="statusText" class="mt-4 text-yellow-300 font-bold text-xl h-8">
+                點擊寶可夢球！🔴
+            </div>
+
+            <button onclick="initGame()" class="mt-6 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-lg px-8 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all transform active:scale-95">
+                再玩一次 🔄
+            </button>
+        </div>
+
+    </div>
+
+<script>
+    const SHAPES = {
+        circle: `<svg class="shape-svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="#3b82f6"/></svg>`,
+        square: `<svg class="shape-svg" viewBox="0 0 100 100"><rect x="12" y="12" width="76" height="76" rx="8" fill="#eab308"/></svg>`,
+        rectangle: `<svg class="shape-svg" viewBox="0 0 100 100"><rect x="8" y="24" width="84" height="52" rx="8" fill="#10b981"/></svg>`,
+        triangle: `<svg class="shape-svg" viewBox="0 0 100 100"><polygon points="50,10 10,88 90,88" fill="#ef4444"/></svg>`,
+        diamond: `<svg class="shape-svg" viewBox="0 0 100 100"><polygon points="50,8 92,50 50,92 8,50" fill="#a855f7"/></svg>`,
+        parallelogram: `<svg class="shape-svg" viewBox="0 0 100 100"><polygon points="28,18 94,18 72,82 6,82" fill="#f97316"/></svg>`
+    };
+
+    const pokemonList = [
+        { name: "Pikachu ⚡", img: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png" },
+        { name: "Charizard 🔥", img: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png" },
+        { name: "Squirtle 💧", img: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/7.png" },
+        { name: "Bulbasaur 🍃", img: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png" },
+        { name: "Gengar 👻", img: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/94.png" },
+        { name: "Eevee 🐾", img: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/133.png" },
+        { name: "Snorlax 😴", img: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/143.png" },
+        { name: "Mewtwo 🔮", img: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png" },
+        { name: "Dragonite 🐉", img: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/149.png" },
+        { name: "Lucario 🐺", img: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/448.png" },
+        { name: "Greninja 🥷", img: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/658.png" }
+    ];
+
+    const TOTAL_QUESTIONS = 5;
+    let currentQuestionIndex = 0;
+    let currentTargetSequence = [];
+    let userAnswers = [];
+    let isChecking = false;
+
+    // --- Clean MIDI Chime Synth (No Static Noise) ---
+    function playMidiSuccessSound() {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const audioCtx = new AudioContext();
+
+            const midiNotes = [
+                { freq: 523.25, time: 0.00, duration: 0.12 }, // C5
+                { freq: 659.25, time: 0.08, duration: 0.12 }, // E5
+                { freq: 783.99, time: 0.16, duration: 0.12 }, // G5
+                { freq: 1046.50, time: 0.26, duration: 0.35 } // C6
+            ];
+
+            midiNotes.forEach(note => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(note.freq, audioCtx.currentTime + note.time);
+
+                gain.gain.setValueAtTime(0, audioCtx.currentTime + note.time);
+                gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + note.time + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + note.time + note.duration);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(audioCtx.currentTime + note.time);
+                osc.stop(audioCtx.currentTime + note.time + note.duration);
+            });
+        } catch (e) {
+            console.log('Audio error:', e);
+        }
+    }
+
+    function playPikachuSound() {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const audioCtx = new AudioContext();
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.1);
+            osc.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.2);
+            
+            gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.25);
+        } catch(e) { console.log(e); }
+    }
+
+    function initGame() {
+        currentQuestionIndex = 0;
+        document.getElementById('mainCard').className = "bg-white rounded-3xl shadow-xl p-3 sm:p-6 max-w-4xl w-full border-4 border-slate-200 text-center flex flex-col items-center transition-colors duration-500";
+        document.getElementById('topHeader').classList.remove('hidden');
+        document.getElementById('gameArea').classList.remove('hidden');
+        document.getElementById('completeArea').classList.add('hidden');
+        document.getElementById('completeArea').classList.remove('flex');
+        
+        // Reset Pokéball
+        const pokeballBtn = document.getElementById('pokeballBtn');
+        const pokemonDisplay = document.getElementById('pokemonDisplay');
+        if (pokeballBtn) pokeballBtn.classList.remove('hidden');
+        if (pokemonDisplay) pokemonDisplay.classList.add('hidden');
+        
+        renderChoices();
+        nextQuestion();
+    }
+
+    function renderChoices() {
+        const choicesContainer = document.getElementById('choicesContainer');
+        choicesContainer.innerHTML = '';
+        
+        Object.keys(SHAPES).forEach(shapeKey => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'choice-btn w-12 h-12 sm:w-16 sm:h-16 p-2 bg-slate-50 hover:bg-indigo-50 border-2 border-slate-200 hover:border-indigo-400 rounded-2xl flex items-center justify-center cursor-pointer shadow-sm active:shadow-inner focus:outline-none';
+            btn.innerHTML = SHAPES[shapeKey];
+            btn.onclick = () => selectShape(shapeKey);
+            choicesContainer.appendChild(btn);
+        });
+    }
+
+    function nextQuestion() {
+        if (currentQuestionIndex >= TOTAL_QUESTIONS) {
+            showGameComplete();
+            return;
+        }
+
+        isChecking = false;
+        document.getElementById('message').className = "min-h-[32px] text-base sm:text-xl font-semibold text-slate-500 mb-4";
+        document.getElementById('message').innerText = '按順序選出對應的圖形';
+        document.getElementById('progress').innerText = `第 ${currentQuestionIndex + 1} / ${TOTAL_QUESTIONS} 題`;
+
+        const shapeKeys = Object.keys(SHAPES);
+        currentTargetSequence = [];
+        
+        for (let i = 0; i < 4; i++) {
+            const randomShape = shapeKeys[Math.floor(Math.random() * shapeKeys.length)];
+            currentTargetSequence.push(randomShape);
+        }
+
+        userAnswers = new Array(currentTargetSequence.length).fill(null);
+
+        const questionBox = document.getElementById('questionBox');
+        questionBox.innerHTML = currentTargetSequence.map(name => {
+            const len = name.length;
+            let flexStyle = 'flex: 1 1 0%;';
+            let textSizeClass = 'text-lg xs:text-xl sm:text-3xl md:text-4xl font-black';
+            
+            if (len > 10) {
+                flexStyle = 'flex: 1.65 1 0%;';
+                textSizeClass = 'text-sm xs:text-base sm:text-2xl md:text-3xl font-black';
+            } else if (len > 8) {
+                flexStyle = 'flex: 1.3 1 0%;';
+                textSizeClass = 'text-base xs:text-lg sm:text-3xl md:text-4xl font-black';
+            }
+
+            return `<span style="${flexStyle}" class="text-center bg-indigo-50 border-2 sm:border-3 border-indigo-300 text-indigo-950 py-2 sm:py-3 px-0 rounded-2xl shadow-sm whitespace-nowrap overflow-visible flex items-center justify-center tracking-tight leading-none ${textSizeClass}">${name}</span>`;
+        }).join('');
+
+        renderAnswerBoxes();
+    }
+
+    function renderAnswerBoxes() {
+        const answerContainer = document.getElementById('answerContainer');
+        answerContainer.innerHTML = '';
+
+        userAnswers.forEach((shapeKey, index) => {
+            const box = document.createElement('div');
+            box.className = `answer-box w-14 h-14 sm:w-20 sm:h-20 border-3 border-dashed border-slate-300 rounded-2xl flex items-center justify-center p-2.5 cursor-pointer bg-slate-50 ${shapeKey ? 'filled animate-pop' : ''}`;
+            if (shapeKey) {
+                box.innerHTML = SHAPES[shapeKey];
+            } else {
+                box.innerHTML = `<span class="text-slate-300 text-xs sm:text-sm font-bold">${index + 1}</span>`;
+            }
+            box.onclick = () => removeAnswer(index);
+            answerContainer.appendChild(box);
+        });
+    }
+
+    function selectShape(shapeKey) {
+        if (isChecking) return;
+
+        const emptyIndex = userAnswers.indexOf(null);
+        if (emptyIndex !== -1) {
+            userAnswers[emptyIndex] = shapeKey;
+            renderAnswerBoxes();
+            checkAnswer();
+        }
+    }
+
+    function removeAnswer(index) {
+        if (isChecking || !userAnswers[index]) return;
+        userAnswers[index] = null;
+        renderAnswerBoxes();
+    }
+
+    function checkAnswer() {
+        if (userAnswers.includes(null)) return;
+
+        const isCorrect = userAnswers.every((val, index) => val === currentTargetSequence[index]);
+        const msgEl = document.getElementById('message');
+
+        if (isCorrect) {
+            isChecking = true;
+            msgEl.className = "min-h-[32px] text-lg sm:text-xl font-bold text-emerald-600 mb-4 animate-bounce";
+            msgEl.innerText = '👏 答對了！好棒！';
+            
+            playMidiSuccessSound();
+
+            setTimeout(() => {
+                currentQuestionIndex++;
+                nextQuestion();
+            }, 1200);
+        } else {
+            msgEl.className = "min-h-[32px] text-lg sm:text-xl font-bold text-rose-500 mb-4";
+            msgEl.innerText = '❌ 順序有些不對，點擊框框可修改！';
+        }
+    }
+
+    function showGameComplete() {
+        document.getElementById('topHeader').classList.add('hidden');
+        document.getElementById('gameArea').classList.add('hidden');
+        document.getElementById('mainCard').className = "bg-indigo-950 rounded-3xl shadow-xl p-3 sm:p-6 max-w-4xl w-full border-4 border-indigo-400 text-center flex flex-col items-center transition-colors duration-500";
+        
+        const completeArea = document.getElementById('completeArea');
+        completeArea.classList.remove('hidden');
+        completeArea.classList.add('flex');
+        
+        playMidiSuccessSound();
+        setTimeout(resizeCanvas, 100);
+    }
+
+    // Sparkle Canvas
+    const canvas = document.getElementById('sparkCanvas');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    let particles = [];
+
+    function resizeCanvas() {
+        if (!canvas) return;
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    class Spark {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.size = Math.random() * 4 + 2;
+            this.speedX = (Math.random() - 0.5) * 8;
+            this.speedY = (Math.random() - 0.5) * 8;
+            this.color = ['#fde047', '#eab308', '#ffffff', '#38bdf8'][Math.floor(Math.random() * 4)];
+            this.life = 1;
+            this.decay = Math.random() * 0.03 + 0.02;
+        }
+        update() {
+            this.x += this.speedX;
+            this.y += this.speedY;
+            this.life -= this.decay;
+        }
+        draw() {
+            if (!ctx) return;
+            ctx.save();
+            ctx.globalAlpha = Math.max(this.life, 0);
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    function animateSparks() {
+        if (ctx && canvas) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, index) => {
+                p.update();
+                p.draw();
+                if (p.life <= 0) particles.splice(index, 1);
+            });
+        }
+        requestAnimationFrame(animateSparks);
+    }
+    animateSparks();
+
+    function triggerElectricSpark() {
+        const ball = document.getElementById('pokeball');
+        const pokeballBtn = document.getElementById('pokeballBtn');
+        const pokemonDisplay = document.getElementById('pokemonDisplay');
+        const pokemonImg = document.getElementById('pokemonImg');
+
+        if (ball && canvas) {
+            const rect = ball.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2 - canvasRect.left;
+            const centerY = rect.top + rect.height / 2 - canvasRect.top;
+
+            for (let i = 0; i < 40; i++) {
+                particles.push(new Spark(centerX, centerY));
+            }
+        }
+
+        const randomPokemon = pokemonList[Math.floor(Math.random() * pokemonList.length)];
+        if (pokemonImg) pokemonImg.src = randomPokemon.img;
+
+        if (pokeballBtn) pokeballBtn.classList.add('hidden');
+        if (pokemonDisplay) pokemonDisplay.classList.remove('hidden');
+
+        playPikachuSound();
+        
+        const status = document.getElementById('statusText');
+        if (status) status.innerText = `恭喜獲得 ${randomPokemon.name}!`;
+    }
+
+    window.onload = initGame;
+</script>
+</body>
+</html>
